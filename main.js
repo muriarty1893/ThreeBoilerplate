@@ -1,45 +1,109 @@
 import * as THREE from 'three';
-import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-const renderer = new THREE.WebGLRenderer({antialias: true});
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
-// Sets the color of the background.
 renderer.setClearColor(0xFEFEFE);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-    45,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-// Sets orbit control to move the camera around.
 const orbit = new OrbitControls(camera, renderer.domElement);
-
-// Camera positioning.
 camera.position.set(6, 8, 14);
-// Has to be done everytime we update the camera position.
 orbit.update();
 
-// Creates a 12 by 12 grid helper.
-const gridHelper = new THREE.GridHelper(12, 12);
-scene.add(gridHelper);
+scene.add(new THREE.GridHelper(12, 12));
+scene.add(new THREE.AxesHelper(4));
+scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-// Creates an axes helper with an axis length of 4.
-const axesHelper = new THREE.AxesHelper(4);
-scene.add(axesHelper);
+/* ── LOADER PREVIEW CONFIG ───────────────────────────────
+   Edit these to inspect changes live. Animation is frozen.
+──────────────────────────────────────────────────────── */
+const CONFIG = {
+  textColor:  '#000000',
+  bgColor:    0xf5f5f5,
+
+  globe1Text:        'MURAT     EKER     >     COMPUTER     ENGINEER     &     IT     ',
+  globe1Font:        'Sofia Sans Condensed',
+  globe1Weight:      900,
+  globe1HeightScale: 1.45,
+
+  globe2Text:        'MACHINE LEARNING       •       BACKEND DEVELOPMENT       •       IT INFRASTRUCTURE       •       PORTFOLIO       •      ',
+  globe2Font:        'Spline Sans Mono',
+  globe2Weight:      300,
+  globe2HeightScale: 1,
+};
+
+function createTextTexture(text, heightScale, fontWeight, fontFamily) {
+  const c   = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  c.width = 8192; c.height = 4096;
+  ctx.clearRect(0, 0, c.width, c.height);
+  const t = text + ' ';
+  ctx.font = `${fontWeight} 100px "${fontFamily}", sans-serif`;
+  const finalSize = 100 * (c.width / ctx.measureText(t).width);
+  ctx.font = `${fontWeight} ${finalSize}px "${fontFamily}", sans-serif`;
+  ctx.fillStyle    = CONFIG.textColor;
+  ctx.strokeStyle  = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth    = finalSize * 0.018;
+  ctx.lineJoin     = 'round';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.scale(1, heightScale);
+  ctx.strokeText(t, 0, 0);
+  ctx.fillText(t, 0, 0);
+  ctx.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter  = THREE.LinearMipmapLinearFilter;
+  tex.magFilter  = THREE.LinearFilter;
+  tex.wrapS      = THREE.RepeatWrapping;
+  tex.wrapT      = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function createTextSphere(text, heightScale, fontWeight, fontFamily) {
+  const group = new THREE.Group();
+  const tex   = createTextTexture(text, heightScale, fontWeight, fontFamily);
+  const mat   = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+  group.add(new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 64), mat));
+  group.userData.tex = tex;
+  return group;
+}
+
+let globe1 = null, globe2 = null;
+
+document.fonts.ready.then(() => {
+  const masterGroup = new THREE.Group();
+  masterGroup.position.y = 2;
+  scene.add(masterGroup);
+
+  globe1 = createTextSphere(CONFIG.globe1Text, CONFIG.globe1HeightScale, CONFIG.globe1Weight, CONFIG.globe1Font);
+  globe2 = createTextSphere(CONFIG.globe2Text, CONFIG.globe2HeightScale, CONFIG.globe2Weight, CONFIG.globe2Font);
+
+  globe1.position.set(0,  0.35, 0);
+  globe2.position.set(0, -0.15, 0);
+  globe1.userData.tex.offset.x = -25 / 64;
+
+  masterGroup.add(globe1, globe2);
+});
 
 function animate() {
-    renderer.render(scene, camera);
+  if (globe1) globe1.userData.tex.offset.x += 0.0004;
+  if (globe2) globe2.userData.tex.offset.x += 0.0008;
+  renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(animate);
 
-window.addEventListener('resize', function() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
